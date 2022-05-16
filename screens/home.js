@@ -1,9 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, SafeAreaView, Animated } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, Animated, Keyboard } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { TouchableWithoutFeedback } from 'react-native-gesture-handler';
 import React, {useCallback, useEffect, useState, useRef} from 'react';
 import Button from 'react-native-button';
+import { createDatabaseIfNotExists, getTasks, saveSession } from '../services/database-service';
+import Autocomplete from 'react-native-autocomplete-input';
+import { Stylesheet } from '../shared/consts';
+
 
 export default function Home({ navigation }) {
 
@@ -13,9 +17,14 @@ export default function Home({ navigation }) {
     const [stopTime, setStopTime] = useState(0);
     const [count, setCount] = useState('0')
     const [update, setUpdate] = useState(true)
+    const [showInputField, setShowInputField] = useState(false);
 
     const pressHistoryHandler = () => {
         navigation.push('History')
+    }
+
+    const pressOptionsHandler = () => {
+        navigation.push('Options')
     }
     
     //Animating play button 
@@ -26,21 +35,20 @@ export default function Home({ navigation }) {
         if(isCounting){
             let d = new Date(timeToBeSet);
             setCount(d.getMinutes()+':'+d.getSeconds());
-            console.log('update time')
         }
     },[update])
 
     useEffect(() => {
+        createDatabaseIfNotExists();
+        getTasks();
         animation.current.play();
         const timer = window.setInterval(() => {
-            console.log('update')
             setUpdate((update) => !update)
         },1000);
         return () => {window.clearInterval(timer)}
     },[])
 
     const playAnimation = () => {
-        console.log(isCounting)
         if(isCounting === false){
             animation.current.play();
             startCounter();
@@ -58,18 +66,23 @@ export default function Home({ navigation }) {
     const stopCounter = () => {
         setIsCounting(false);
         setStopTime(Date.now());
+        saveSession({TStart: time, TStop: Date.now()});
         movePlayButtonBack();
+        setShowInputField(false);
     }
 
     const startCounter = () => {
         console.log('start counter called')
         setTime(Date.now())
+        setTimeout(() => {
+            setShowInputField(true);
+        },700)
     }
 
 
     const movePlayButton = () => {
         Animated.timing(yAnimatedOffsetPlayButton, {
-            toValue: 200,
+            toValue: 150,
             duration: 300,
             useNativeDriver: false
         }).start();
@@ -97,6 +110,8 @@ export default function Home({ navigation }) {
         }).start();
     }
 
+    const shouldSetResponse = () => true;
+
     //Styles
     const buttonContainerStyle = {
         alignSelf: 'center',
@@ -106,7 +121,7 @@ export default function Home({ navigation }) {
         margin: 5, 
         overflow:'hidden', 
         borderRadius:4, 
-        backgroundColor: '#6ed467'}
+        backgroundColor: Stylesheet.colors.GREEN_PRIMARY}
 
     const buttonContainerStyleSecondary = {
         alignSelf: 'center',
@@ -116,7 +131,7 @@ export default function Home({ navigation }) {
         margin: 5, 
         overflow:'hidden', 
         borderRadius:4, 
-        borderColor:'#6ed467',
+        borderColor:Stylesheet.colors.GREEN_PRIMARY,
         borderWidth: 2,
         backgroundColor: 'white'}
 
@@ -126,15 +141,44 @@ export default function Home({ navigation }) {
     }
 
     const buttonStyleSecondary = {
-        fontSize: 20,
-        color: '#6ed467'
+        fontSize: 18,
+        padding: 0,
+        color: Stylesheet.colors.GREEN_PRIMARY
+    }
+
+    const autocompleteStyle = {
+        container: {
+            width:"75%",
+            alignSelf: "center",
+            height: "11%",
+            marginTop: "10%",
+            position: 'absolute',
+            zIndex: 5
+        },
+        inputField: {
+            height: "100%",
+            fontSize: 24,
+            backgroundColor: 'white',
+            borderWidth: 0,
+            padding: 2,
+            paddingLeft: 6,
+            paddingRight: 6
+        }
     }
 
     return (
         <SafeAreaView
+            onResponderRelease={() => {Keyboard.dismiss()}}
+            onStartShouldSetResponder={ shouldSetResponse }
             style={{
             }}
         >
+            {showInputField ? <View style={autocompleteStyle.container}>
+                <Autocomplete 
+                    style={autocompleteStyle.inputField}
+                    autoComplete={false}
+                    />
+            </View> : null }
             <Animated.View style={{top: yAnimatedOffsetPlayButton}}>
                 <Animated.View style={{
                     alignItems: 'center',
@@ -175,6 +219,11 @@ export default function Home({ navigation }) {
                     style={buttonStyleSecondary}
                     containerStyle={buttonContainerStyleSecondary}
                     >History</Button>
+                <Button 
+                onPress={pressOptionsHandler}
+                style={buttonStyleSecondary}
+                containerStyle={buttonContainerStyleSecondary}
+                >Options</Button>
             </Animated.View>
         </SafeAreaView>
     );
